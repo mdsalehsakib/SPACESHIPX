@@ -4,401 +4,254 @@
     <meta charset="UTF-8">
     <title>IRON-FLIGHT: ORBITAL DEFENSE</title>
     <style>
-        /* SCI-FI STYLING */
         body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #050510;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #00ffff;
-            user-select: none;
+            margin: 0; overflow: hidden; background-color: #050510;
+            font-family: 'Segoe UI', sans-serif; color: #00ffff; user-select: none;
         }
-
-        canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
+        canvas { display: block; position: absolute; top: 0; left: 0; }
         #game-layer { z-index: 1; }
-        
-        /* HUD LAYER */
         #ui-layer {
-            position: absolute;
-            z-index: 2;
-            width: 100vw;
-            height: 100vh;
+            position: absolute; z-index: 2; width: 100vw; height: 100vh;
             pointer-events: none;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.2) 50%);
             background-size: 100% 4px;
         }
-
-        /* DEBUG CAM */
         #cam-container {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 240px;
-            height: 180px;
-            border: 2px solid #00ffff;
-            background: rgba(0, 20, 20, 0.8);
-            border-radius: 8px;
-            box-shadow: 0 0 15px #00ffff;
-            overflow: hidden;
-            z-index: 10;
+            position: absolute; bottom: 20px; right: 20px; width: 240px; height: 180px;
+            border: 2px solid #555; background: #000; border-radius: 8px; z-index: 10;
         }
-        
-        #video-feed {
-            width: 100%;
-            height: 100%;
-            transform: scaleX(-1); /* Mirror effect */
-            opacity: 0.6;
-        }
-
-        /* TEXT ELEMENTS */
-        .hud-text {
-            position: absolute;
-            font-weight: bold;
-            text-shadow: 0 0 10px #00ffff;
-            letter-spacing: 2px;
-        }
-
-        #score-display { top: 20px; right: 180px; font-size: 30px; }
-        #health-display { top: 20px; left: 40px; font-size: 30px; color: #ff0055; text-shadow: 0 0 10px #ff0055; }
-        
+        #cam-container.active { border-color: #00ff00; box-shadow: 0 0 15px #00ff00; }
+        #video-feed { width: 100%; height: 100%; transform: scaleX(-1); opacity: 0.6; }
+        .hud-text { position: absolute; font-weight: bold; text-shadow: 0 0 10px #00ffff; }
+        #score-display { top: 20px; right: 20px; font-size: 30px; }
+        #health-display { top: 20px; left: 20px; font-size: 30px; color: #ff0055; }
         #center-screen {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            z-index: 20;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; z-index: 20;
         }
-
-        h1 { font-size: 60px; margin: 0; text-transform: uppercase; color: #fff; text-shadow: 0 0 20px #00ffff; }
-        p { font-size: 18px; color: #aaa; background: rgba(0,0,0,0.7); padding: 10px; }
-
-        /* WATERMARK & LINK BUTTON */
-        #watermark {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 14px;
-            z-index: 100;
-            pointer-events: auto;
-        }
-
+        h1 { font-size: 50px; margin: 0; color: #fff; text-shadow: 0 0 20px #00ffff; }
+        #watermark { position: absolute; bottom: 10px; left: 10px; color: #555; font-size: 12px; }
         #creator-link {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid #00ffff;
-            color: #00ffff;
-            text-decoration: none;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-            pointer-events: auto;
-            z-index: 100;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            font-size: 12px;
-            letter-spacing: 1px;
+            position: absolute; top: 70px; right: 20px; padding: 5px 10px;
+            border: 1px solid #00ffff; color: #00ffff; text-decoration: none;
+            font-size: 12px; pointer-events: auto;
         }
-
-        #creator-link:hover {
-            background: #00ffff;
-            color: #000;
-            box-shadow: 0 0 15px #00ffff;
-        }
-        
-        /* ERROR LOG DISPLAY */
         #debug-log {
-            position: absolute;
-            top: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #ff5555;
-            background: rgba(0,0,0,0.9);
-            padding: 10px;
-            border: 1px solid red;
-            display: none;
-            z-index: 999;
-            max-width: 80%;
-            font-family: monospace;
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            color: #ff5555; background: rgba(0,0,0,0.8); padding: 5px; display: none;
         }
-
     </style>
-    
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-    <video id="input-video" autoplay muted playsinline style="position:absolute; opacity:0.1; pointer-events:none; top:0; left:0; width:1px; height:1px;"></video>
-
+    <video id="input-video" playsinline style="display:none;"></video>
     <canvas id="game-layer"></canvas>
 
     <div id="ui-layer">
-        
         <div id="watermark">MADE BY MD SALEH SAKIB</div>
         <a id="creator-link" href="https://linktr.ee/salehsakib" target="_blank">CONNECT</a>
-
-        <div id="health-display" class="hud-text">SHIELD: 100%</div>
-        <div id="score-display" class="hud-text">SCORE: 0</div>
-        
+        <div id="health-display">SHIELD: 100%</div>
+        <div id="score-display">0</div>
         <div id="debug-log"></div>
-
         <div id="center-screen">
             <h1 id="main-msg">SYSTEM BOOT</h1>
-            <p id="sub-msg">Initializing Neural Link...<br>Please Allow Camera Access.</p>
+            <p id="sub-msg">Loading AI...</p>
         </div>
-
         <div id="cam-container">
             <canvas id="video-feed"></canvas>
-            <div style="position:absolute; bottom:5px; left:5px; font-size:10px; color:#00ffff;">RAW FEED</div>
         </div>
     </div>
 
 <script>
-    /** * ERROR HANDLING */
-    function logError(msg) {
-        const log = document.getElementById('debug-log');
-        log.style.display = 'block';
-        log.innerHTML += "ERROR: " + msg + "<br>";
-        console.error(msg);
-        document.getElementById('sub-msg').innerHTML = "<span style='color:red'>SYSTEM FAILURE. SEE LOG ABOVE.</span>";
-    }
-    
-    window.onerror = function(message, source, lineno, colno, error) {
-        logError(message);
+    const logError = (msg) => {
+        const d = document.getElementById('debug-log');
+        d.style.display = 'block'; d.innerHTML = msg; console.error(msg);
     };
 
-    /** * CONFIGURATION */
-    const config = {
-        speed: 5,
-        starCount: 200,
-        colors: { ship: '#00ffff', enemy: '#ff0055', bg: '#050510' }
-    };
-
-    /** * STATE */
-    const state = {
-        gameRunning: false, score: 0, health: 100, frame: 0, handDetected: false
-    };
-
-    /** * SETUP CANVAS */
+    // --- SETUP ---
     const canvas = document.getElementById('game-layer');
     const ctx = canvas.getContext('2d');
     const feedCanvas = document.getElementById('video-feed');
     const feedCtx = feedCanvas.getContext('2d');
+    const video = document.getElementById('input-video');
+    
     let width, height;
-
     function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+        width = window.innerWidth; height = window.innerHeight;
+        canvas.width = width; canvas.height = height;
     }
     window.addEventListener('resize', resize);
     resize();
-    feedCanvas.width = 240; feedCanvas.height = 180;
+    feedCanvas.width = 320; feedCanvas.height = 240;
 
-    /** * GAME OBJECTS */
-    const ship = {
-        x: width / 2, y: height - 150, targetX: width / 2, targetY: height - 150,
-        trails: [],
-        draw: function() {
-            this.x += (this.targetX - this.x) * 0.15;
-            this.y += (this.targetY - this.y) * 0.15;
-            
-            // --- SAFE PARTICLE LOOP ---
-            for (let i = this.trails.length - 1; i >= 0; i--) {
-                let t = this.trails[i];
-                t.y += 5;
-                t.life -= 0.1;
-                
-                if (t.life <= 0) {
-                    this.trails.splice(i, 1);
-                } else {
-                    ctx.fillStyle = `rgba(0, 255, 255, ${t.life})`;
-                    ctx.beginPath();
-                    ctx.arc(t.x, t.y, Math.max(0, 5 * t.life), 0, Math.PI*2);
-                    ctx.fill();
-                }
-            }
-            this.trails.push({x: this.x, y: this.y + 30, life: 1.0});
+    // --- GAME STATE ---
+    const state = { running: false, score: 0, health: 100, handSeen: false };
+    const ship = { x: width/2, y: height-100, tx: width/2, ty: height-100, trails: [] };
+    const obstacles = [];
+    const stars = Array(100).fill().map(() => ({
+        x: (Math.random()-0.5)*width*2, y: (Math.random()-0.5)*height*2, z: Math.random()*2000
+    }));
 
-            ctx.save(); ctx.translate(this.x, this.y);
-            ctx.shadowColor = config.colors.ship; ctx.shadowBlur = 20;
-            ctx.fillStyle = "#000"; ctx.strokeStyle = config.colors.ship; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(20, 20); ctx.lineTo(10, 30); 
-            ctx.lineTo(-10, 30); ctx.lineTo(-20, 20); ctx.closePath(); ctx.fill(); ctx.stroke();
-            ctx.restore();
-        }
-    };
-    
-    // --- MOUSE CONTROL FALLBACK ---
-    // If camera fails, you can use mouse to test if game works
-    window.addEventListener('mousemove', (e) => {
-        if(!state.handDetected) {
-            ship.targetX = e.clientX;
-            ship.targetY = e.clientY;
-            // Auto start if using mouse and not started
-            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") { 
-               state.gameRunning = true; 
-               document.getElementById('center-screen').style.display = 'none'; 
-               document.getElementById('health-display').innerText = "SHIELD: 100%"; 
-            }
-        }
-    });
-
-    let stars = [];
-    for(let i=0; i<config.starCount; i++) {
-        stars.push({
-            x: (Math.random()-0.5)*width*2, y: (Math.random()-0.5)*height*2, 
-            z: Math.random()*2000,
-            update: function() {
-                this.z -= 10 + (state.score * 0.1);
-                if (this.z <= 0) { this.z = 2000; this.x = (Math.random()-0.5)*width*2; this.y = (Math.random()-0.5)*height*2; }
-            },
-            draw: function() {
-                let sx = (this.x / this.z) * width + width/2;
-                let sy = (this.y / this.z) * height + height/2;
-                let size = (1 - this.z / 2000) * 4;
-                if (sx > 0 && sx < width && sy > 0 && sy < height) {
-                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, sy, size, size);
-                }
-            }
+    // --- MAIN LOOP ---
+    function loop() {
+        // 1. Clear & Background
+        ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, width, height);
+        
+        // 2. Stars
+        stars.forEach(s => {
+            s.z -= 10 + (state.score * 0.1);
+            if(s.z <= 0) { s.z = 2000; s.x = (Math.random()-0.5)*width*2; s.y = (Math.random()-0.5)*height*2; }
+            let sx = (s.x / s.z) * width + width/2;
+            let sy = (s.y / s.z) * height + height/2;
+            let sz = (1 - s.z/2000) * 3;
+            if(sx>0 && sx<width && sy>0 && sy<height) { ctx.fillStyle='#fff'; ctx.fillRect(sx, sy, sz, sz); }
         });
+
+        // 3. Game Logic (Wrapped in Try/Catch to prevent freeze)
+        try {
+            if (state.running) {
+                // Move Ship
+                ship.x += (ship.tx - ship.x) * 0.2;
+                ship.y += (ship.ty - ship.y) * 0.2;
+
+                // Draw Trails (SAFE MODE)
+                for (let i = ship.trails.length - 1; i >= 0; i--) {
+                    let t = ship.trails[i];
+                    t.y += 5; t.life -= 0.1;
+                    if (t.life <= 0) ship.trails.splice(i, 1);
+                    else {
+                        ctx.fillStyle = `rgba(0,255,255,${t.life})`;
+                        ctx.beginPath();
+                        // CRITICAL FIX: Math.max(0, ...) prevents negative radius crash
+                        ctx.arc(t.x, t.y, Math.max(0, 5 * t.life), 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+                ship.trails.push({x: ship.x, y: ship.y+30, life: 1});
+
+                // Draw Ship
+                ctx.save(); ctx.translate(ship.x, ship.y);
+                ctx.shadowColor='#00ffff'; ctx.shadowBlur=15;
+                ctx.fillStyle='#000'; ctx.strokeStyle='#00ffff'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.moveTo(0,-40); ctx.lineTo(20,20); ctx.lineTo(0,10); ctx.lineTo(-20,20); ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.restore();
+
+                // Obstacles
+                if (Math.random() < 0.05) obstacles.push({x: Math.random()*width, y: -50, s: 30+Math.random()*30});
+                
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    let o = obstacles[i];
+                    o.y += 5 + (state.score*0.01);
+                    
+                    // Draw Hexagon
+                    ctx.save(); ctx.translate(o.x, o.y);
+                    ctx.strokeStyle='#ff0055'; ctx.lineWidth=3; ctx.shadowColor='#ff0055'; ctx.shadowBlur=10;
+                    ctx.beginPath();
+                    for(let j=0; j<6; j++) ctx.lineTo(o.s*Math.cos(j*Math.PI/3), o.s*Math.sin(j*Math.PI/3));
+                    ctx.closePath(); ctx.stroke(); ctx.restore();
+
+                    // Collision
+                    if (Math.hypot(ship.x-o.x, ship.y-o.y) < o.s+20) {
+                        state.health -= 34;
+                        obstacles.splice(i, 1);
+                        document.getElementById('health-display').innerText = `SHIELD: ${Math.floor(state.health)}%`;
+                        if (state.health <= 0) resetGame();
+                    } else if (o.y > height+100) {
+                        obstacles.splice(i, 1);
+                        state.score += 10;
+                        document.getElementById('score-display').innerText = state.score;
+                    }
+                }
+            } else {
+                // Idle Mode
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle='#00ffff'; ctx.beginPath(); ctx.arc(width/2, height-100, 20, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        } catch (e) {
+            console.error("Game Logic Error (Skipped Frame):", e);
+        }
+
+        requestAnimationFrame(loop);
     }
 
-    let obstacles = [];
-    class Obstacle {
-        constructor() {
-            this.x = Math.random() * width; this.y = -100;
-            this.size = 30 + Math.random() * 50;
-            this.speed = 4 + Math.random() * 4 + (state.score * 0.05);
-            this.angle = 0;
-        }
-        update() { this.y += this.speed; this.angle += 0.05; }
-        draw() {
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
-            ctx.strokeStyle = config.colors.enemy; ctx.lineWidth = 3; ctx.shadowColor = config.colors.enemy; ctx.shadowBlur = 10;
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) { ctx.lineTo(this.size * Math.cos(i * Math.PI / 3), this.size * Math.sin(i * Math.PI / 3)); }
-            ctx.closePath(); ctx.stroke(); ctx.restore();
-        }
-    }
-
-    /** * GAME LOOP */
-    function updateMsg(title, sub) {
-        document.getElementById('main-msg').innerText = title;
-        document.getElementById('sub-msg').innerHTML = sub;
+    function resetGame() {
+        state.running = false;
+        state.health = 100;
+        state.score = 0;
+        obstacles.length = 0;
+        document.getElementById('main-msg').innerText = "CRITICAL FAILURE";
+        document.getElementById('sub-msg').innerText = "Show Hand to Reboot";
         document.getElementById('center-screen').style.display = 'block';
     }
 
-    function gameLoop() {
-        ctx.fillStyle = config.colors.bg; ctx.fillRect(0, 0, width, height);
-        ctx.strokeStyle = "rgba(0, 255, 255, 0.1)"; ctx.lineWidth = 1; ctx.beginPath();
-        for(let i=-width; i<width*2; i+=100) { ctx.moveTo(width/2 + (i - width/2) * 0.2, 0); ctx.lineTo(i, height); } ctx.stroke();
-        
-        stars.forEach(s => { s.update(); s.draw(); });
+    loop();
 
-        if (state.gameRunning) {
-            ship.draw();
-            if (state.frame % 40 === 0) obstacles.push(new Obstacle());
+    // --- AI MANUAL LOOP ---
+    async function initAI() {
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`});
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        
+        hands.onResults(results => {
+            // Draw debug feed
+            feedCtx.clearRect(0, 0, 320, 240);
+            feedCtx.drawImage(results.image, 0, 0, 320, 240);
             
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                let obs = obstacles[i];
-                obs.update(); obs.draw();
+            if (results.multiHandLandmarks.length > 0) {
+                // Hand Found
+                document.getElementById('cam-container').classList.add('active');
+                const lm = results.multiHandLandmarks[0];
+                drawConnectors(feedCtx, lm, HAND_CONNECTIONS, {color: '#00ff00', lineWidth: 2});
                 
-                const dist = Math.sqrt((ship.x - obs.x)**2 + (ship.y - obs.y)**2);
-                
-                if (dist < obs.size + 20) {
-                    state.health -= 34;
-                    obstacles.splice(i, 1);
-                    document.getElementById('health-display').innerText = `SHIELD: ${Math.floor(state.health)}%`;
-                    canvas.style.transform = `translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`;
-                    setTimeout(() => canvas.style.transform = "none", 100);
-                    if (state.health <= 0) { 
-                        state.gameRunning = false; 
-                        updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand (or move mouse) to Reboot`); 
-                        state.health = 100; state.score = 0; obstacles = []; 
-                    }
-                } else if (obs.y > height + 100) { 
-                    obstacles.splice(i, 1); 
-                    state.score += 100; 
-                    document.getElementById('score-display').innerText = `SCORE: ${state.score}`; 
+                // Update Ship Target
+                ship.tx = (1 - lm[8].x) * width;
+                ship.ty = lm[8].y * height;
+
+                // Start Game Trigger
+                if (!state.running && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") {
+                    state.running = true;
+                    document.getElementById('center-screen').style.display = 'none';
+                    document.getElementById('health-display').innerText = "SHIELD: 100%";
+                } else if (!state.running) {
+                    document.getElementById('main-msg').innerText = "READY";
+                    document.getElementById('sub-msg').innerText = "Hold Steady...";
+                }
+            } else {
+                document.getElementById('cam-container').classList.remove('active');
+                if(state.running) {
+                    state.running = false;
+                    document.getElementById('main-msg').innerText = "SIGNAL LOST";
+                    document.getElementById('sub-msg').innerText = "Show Hand to Resume";
+                    document.getElementById('center-screen').style.display = 'block';
                 }
             }
-            state.frame++;
-        } else { ctx.globalAlpha = 0.3; ship.draw(); ctx.globalAlpha = 1; }
-        requestAnimationFrame(gameLoop);
-    }
-    gameLoop();
+        });
 
-    /** * AI SETUP */
-    const videoElement = document.getElementById('input-video');
-
-    function onResults(results) {
-        // AI found hand?
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            state.handDetected = true;
-            if (document.getElementById('main-msg').innerText === "SYSTEM BOOT") updateMsg("READY", "Hold steady to start");
+        // Setup Camera
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+            video.srcObject = stream;
+            await video.play();
+            document.getElementById('sub-msg').innerText = "Show Hand to Start";
             
-            // Debug view
-            feedCtx.clearRect(0, 0, feedCanvas.width, feedCanvas.height);
-            feedCtx.drawImage(results.image, 0, 0, feedCanvas.width, feedCanvas.height);
-            
-            const landmarks = results.multiHandLandmarks[0];
-            drawConnectors(feedCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 2});
-            
-            const tip = landmarks[8];
-            ship.targetX = (1 - tip.x) * width; ship.targetY = tip.y * height;
-            
-            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") { 
-                state.gameRunning = true; 
-                document.getElementById('center-screen').style.display = 'none'; 
-                document.getElementById('health-display').innerText = "SHIELD: 100%"; 
+            // Manual processing loop (More robust than CameraUtils)
+            async function aiLoop() {
+                await hands.send({image: video});
+                requestAnimationFrame(aiLoop);
             }
-        } else {
-            state.handDetected = false;
-            // Only update debug view with raw image if no hand
-            feedCtx.drawImage(results.image, 0, 0, feedCanvas.width, feedCanvas.height);
+            aiLoop();
+
+        } catch (e) {
+            logError("Camera Error: " + e.message);
         }
     }
 
-    try {
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
-        }});
+    initAI();
 
-        hands.setOptions({
-            maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5
-        });
-
-        hands.onResults(onResults);
-
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({image: videoElement}); },
-            width: 640, height: 480
-        });
-
-        // FORCE PLAY
-        videoElement.onloadedmetadata = () => {
-             videoElement.play();
-        };
-
-        camera.start().catch(e => logError("Camera Start Failed: " + e));
-
-    } catch(e) {
-        logError("Initialization Failed: " + e);
-    }
 </script>
 </body>
 </html>
