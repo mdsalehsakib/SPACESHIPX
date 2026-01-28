@@ -215,13 +215,28 @@
         draw: function() {
             this.x += (this.targetX - this.x) * 0.15;
             this.y += (this.targetY - this.y) * 0.15;
-            this.trails.push({x: this.x, y: this.y + 30, life: 1});
-            this.trails.forEach((t, i) => {
-                t.y += 5; t.life -= 0.1;
-                if(t.life <= 0) this.trails.splice(i, 1);
-                ctx.fillStyle = `rgba(0, 255, 255, ${t.life})`;
-                ctx.beginPath(); ctx.arc(t.x, t.y, 5 * t.life, 0, Math.PI*2); ctx.fill();
-            });
+            
+            // --- FIX: Safer Particle Loop ---
+            // Removed forEach, used reverse for-loop to handle removal correctly
+            // Added Math.max(0, ...) to prevent negative radius crash
+            for (let i = this.trails.length - 1; i >= 0; i--) {
+                let t = this.trails[i];
+                t.y += 5;
+                t.life -= 0.1;
+                
+                if (t.life <= 0) {
+                    this.trails.splice(i, 1);
+                } else {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${t.life})`;
+                    ctx.beginPath();
+                    // Math.max(0, ...) ensures radius is never negative
+                    ctx.arc(t.x, t.y, Math.max(0, 5 * t.life), 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+            // Add new particle
+            this.trails.push({x: this.x, y: this.y + 30, life: 1.0});
+
             ctx.save(); ctx.translate(this.x, this.y);
             ctx.shadowColor = config.colors.ship; ctx.shadowBlur = 20;
             ctx.fillStyle = "#000"; ctx.strokeStyle = config.colors.ship; ctx.lineWidth = 2;
@@ -286,19 +301,31 @@
         if (state.gameRunning) {
             ship.draw();
             if (state.frame % 40 === 0) obstacles.push(new Obstacle());
-            obstacles.forEach((obs, index) => {
+            
+            // Loop backwards for safe removal
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
                 obs.update(); obs.draw();
+                
                 const dist = Math.sqrt((ship.x - obs.x)**2 + (ship.y - obs.y)**2);
+                
                 if (dist < obs.size + 20) {
                     state.health -= 34;
-                    obstacles.splice(index, 1);
+                    obstacles.splice(i, 1);
                     document.getElementById('health-display').innerText = `SHIELD: ${Math.floor(state.health)}%`;
                     canvas.style.transform = `translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`;
                     setTimeout(() => canvas.style.transform = "none", 100);
-                    if (state.health <= 0) { state.gameRunning = false; updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand to Reboot`); state.health = 100; state.score = 0; obstacles = []; }
+                    if (state.health <= 0) { 
+                        state.gameRunning = false; 
+                        updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand to Reboot`); 
+                        state.health = 100; state.score = 0; obstacles = []; 
+                    }
+                } else if (obs.y > height + 100) { 
+                    obstacles.splice(i, 1); 
+                    state.score += 100; 
+                    document.getElementById('score-display').innerText = `SCORE: ${state.score}`; 
                 }
-                if (obs.y > height + 100) { obstacles.splice(index, 1); state.score += 100; document.getElementById('score-display').innerText = `SCORE: ${state.score}`; }
-            });
+            }
             state.frame++;
         } else { ctx.globalAlpha = 0.3; ship.draw(); ctx.globalAlpha = 1; }
         requestAnimationFrame(gameLoop);
