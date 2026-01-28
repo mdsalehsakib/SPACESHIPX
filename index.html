@@ -11,7 +11,7 @@
             background-color: #050510;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #00ffff;
-            user-select: none; /* Prevent text selection while playing */
+            user-select: none;
         }
 
         canvas {
@@ -30,8 +30,8 @@
             width: 100vw;
             height: 100vh;
             pointer-events: none;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            background-size: 100% 2px, 3px 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
         }
 
         /* DEBUG CAM */
@@ -64,7 +64,7 @@
             letter-spacing: 2px;
         }
 
-        #score-display { top: 20px; right: 180px; font-size: 30px; } /* Moved left to make room for button */
+        #score-display { top: 20px; right: 180px; font-size: 30px; }
         #health-display { top: 20px; left: 40px; font-size: 30px; color: #ff0055; text-shadow: 0 0 10px #ff0055; }
         
         #center-screen {
@@ -87,7 +87,7 @@
             color: rgba(255, 255, 255, 0.5);
             font-size: 14px;
             z-index: 100;
-            pointer-events: auto; /* Allow clicking if needed */
+            pointer-events: auto;
         }
 
         #creator-link {
@@ -102,7 +102,7 @@
             font-weight: bold;
             border-radius: 4px;
             cursor: pointer;
-            pointer-events: auto; /* Crucial for clickability */
+            pointer-events: auto;
             z-index: 100;
             transition: all 0.3s ease;
             text-transform: uppercase;
@@ -115,39 +115,36 @@
             color: #000;
             box-shadow: 0 0 15px #00ffff;
         }
-
-        /* SCANLINE ANIMATION */
-        .scanline {
-            width: 100%;
-            height: 100px;
-            z-index: 10;
-            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0, 255, 255, 0.2) 50%, rgba(0,0,0,0) 100%);
-            opacity: 0.1;
+        
+        /* ERROR LOG DISPLAY */
+        #debug-log {
             position: absolute;
-            bottom: 100%;
-            animation: scanline 10s linear infinite;
-            pointer-events: none;
-        }
-
-        @keyframes scanline {
-            0% { bottom: 100%; }
-            100% { bottom: -100px; }
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ff5555;
+            background: rgba(0,0,0,0.9);
+            padding: 10px;
+            border: 1px solid red;
+            display: none;
+            z-index: 999;
+            max-width: 80%;
+            font-family: monospace;
         }
 
     </style>
     
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-    <video id="input-video" style="display: none;"></video>
+    <video id="input-video" playsinline style="position:absolute; opacity:0; pointer-events:none;"></video>
 
     <canvas id="game-layer"></canvas>
 
     <div id="ui-layer">
-        <div class="scanline"></div>
         
         <div id="watermark">MADE BY MD SALEH SAKIB</div>
         <a id="creator-link" href="https://linktr.ee/salehsakib" target="_blank">CONNECT</a>
@@ -155,6 +152,8 @@
         <div id="health-display" class="hud-text">SHIELD: 100%</div>
         <div id="score-display" class="hud-text">SCORE: 0</div>
         
+        <div id="debug-log"></div>
+
         <div id="center-screen">
             <h1 id="main-msg">SYSTEM BOOT</h1>
             <p id="sub-msg">Initializing Neural Link...<br>Please Allow Camera Access.</p>
@@ -167,38 +166,36 @@
     </div>
 
 <script>
-    /** * CONFIGURATION 
-     */
+    /** * ERROR HANDLING */
+    function logError(msg) {
+        const log = document.getElementById('debug-log');
+        log.style.display = 'block';
+        log.innerHTML += "ERROR: " + msg + "<br>";
+        console.error(msg);
+        document.getElementById('sub-msg').innerHTML = "<span style='color:red'>SYSTEM FAILURE. SEE LOG ABOVE.</span>";
+    }
+    
+    window.onerror = function(message, source, lineno, colno, error) {
+        logError(message);
+    };
+
+    /** * CONFIGURATION */
     const config = {
         speed: 5,
         starCount: 200,
-        colors: {
-            ship: '#00ffff',
-            enemy: '#ff0055',
-            bg: '#050510'
-        }
+        colors: { ship: '#00ffff', enemy: '#ff0055', bg: '#050510' }
     };
 
-    /**
-     * STATE
-     */
+    /** * STATE */
     const state = {
-        gameRunning: false,
-        score: 0,
-        health: 100,
-        frame: 0,
-        handDetected: false
+        gameRunning: false, score: 0, health: 100, frame: 0, handDetected: false
     };
 
-    /**
-     * SETUP CANVAS
-     */
+    /** * SETUP CANVAS */
     const canvas = document.getElementById('game-layer');
     const ctx = canvas.getContext('2d');
-    
     const feedCanvas = document.getElementById('video-feed');
     const feedCtx = feedCanvas.getContext('2d');
-
     let width, height;
 
     function resize() {
@@ -209,151 +206,70 @@
     }
     window.addEventListener('resize', resize);
     resize();
-    
-    // Feed canvas fixed size
-    feedCanvas.width = 240;
-    feedCanvas.height = 180;
+    feedCanvas.width = 240; feedCanvas.height = 180;
 
-    /**
-     * GAME OBJECTS
-     */
-    
-    // The Player Ship
+    /** * GAME OBJECTS */
     const ship = {
-        x: width / 2,
-        y: height - 150,
-        targetX: width / 2,
-        targetY: height - 150,
-        width: 40,
-        height: 60,
+        x: width / 2, y: height - 150, targetX: width / 2, targetY: height - 150,
         trails: [],
-        
         draw: function() {
-            // Smooth movement (Linear Interpolation)
             this.x += (this.targetX - this.x) * 0.15;
             this.y += (this.targetY - this.y) * 0.15;
-
-            // Draw Engine Trails
             this.trails.push({x: this.x, y: this.y + 30, life: 1});
             this.trails.forEach((t, i) => {
-                t.y += 5;
-                t.life -= 0.1;
+                t.y += 5; t.life -= 0.1;
                 if(t.life <= 0) this.trails.splice(i, 1);
-                
                 ctx.fillStyle = `rgba(0, 255, 255, ${t.life})`;
-                ctx.beginPath();
-                ctx.arc(t.x, t.y, 5 * t.life, 0, Math.PI*2);
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(t.x, t.y, 5 * t.life, 0, Math.PI*2); ctx.fill();
             });
-
-            // Draw Ship Body (Sci-Fi Shape)
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            
-            // Glow
-            ctx.shadowColor = config.colors.ship;
-            ctx.shadowBlur = 20;
-
-            ctx.fillStyle = "#000";
-            ctx.strokeStyle = config.colors.ship;
-            ctx.lineWidth = 2;
-
-            ctx.beginPath();
-            ctx.moveTo(0, -40);
-            ctx.lineTo(20, 20);
-            ctx.lineTo(10, 30);
-            ctx.lineTo(-10, 30);
-            ctx.lineTo(-20, 20);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            // Inner details
-            ctx.fillStyle = config.colors.ship;
-            ctx.beginPath();
-            ctx.arc(0, 0, 5, 0, Math.PI*2);
-            ctx.fill();
-
+            ctx.save(); ctx.translate(this.x, this.y);
+            ctx.shadowColor = config.colors.ship; ctx.shadowBlur = 20;
+            ctx.fillStyle = "#000"; ctx.strokeStyle = config.colors.ship; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(20, 20); ctx.lineTo(10, 30); 
+            ctx.lineTo(-10, 30); ctx.lineTo(-20, 20); ctx.closePath(); ctx.fill(); ctx.stroke();
             ctx.restore();
         }
     };
 
-    // Stars
     let stars = [];
-    class Star {
-        constructor() {
-            this.reset();
-        }
-        reset() {
-            this.x = (Math.random() - 0.5) * width * 2; // Spread wider
-            this.y = (Math.random() - 0.5) * height * 2;
-            this.z = Math.random() * 2000; // Depth
-        }
-        update() {
-            this.z -= 10 + (state.score * 0.1); // Speed up as score increases
-            if (this.z <= 0) this.reset();
-        }
-        draw() {
-            // Perspective Projection
-            let sx = (this.x / this.z) * width + width/2;
-            let sy = (this.y / this.z) * height + height/2;
-            let size = (1 - this.z / 2000) * 4;
-
-            if (sx > 0 && sx < width && sy > 0 && sy < height) {
-                ctx.fillStyle = "#fff";
-                ctx.globalAlpha = 1 - this.z / 2000;
-                ctx.fillRect(sx, sy, size, size);
-                ctx.globalAlpha = 1;
+    for(let i=0; i<config.starCount; i++) {
+        stars.push({
+            x: (Math.random()-0.5)*width*2, y: (Math.random()-0.5)*height*2, 
+            z: Math.random()*2000,
+            update: function() {
+                this.z -= 10 + (state.score * 0.1);
+                if (this.z <= 0) { this.z = 2000; this.x = (Math.random()-0.5)*width*2; this.y = (Math.random()-0.5)*height*2; }
+            },
+            draw: function() {
+                let sx = (this.x / this.z) * width + width/2;
+                let sy = (this.y / this.z) * height + height/2;
+                let size = (1 - this.z / 2000) * 4;
+                if (sx > 0 && sx < width && sy > 0 && sy < height) {
+                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, sy, size, size);
+                }
             }
-        }
+        });
     }
-    // Init stars
-    for(let i=0; i<config.starCount; i++) stars.push(new Star());
 
-    // Obstacles
     let obstacles = [];
     class Obstacle {
         constructor() {
-            this.x = Math.random() * width;
-            this.y = -100;
+            this.x = Math.random() * width; this.y = -100;
             this.size = 30 + Math.random() * 50;
             this.speed = 4 + Math.random() * 4 + (state.score * 0.05);
             this.angle = 0;
-            this.spin = (Math.random() - 0.5) * 0.1;
         }
-        update() {
-            this.y += this.speed;
-            this.angle += this.spin;
-        }
+        update() { this.y += this.speed; this.angle += 0.05; }
         draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
-            
-            ctx.strokeStyle = config.colors.enemy;
-            ctx.lineWidth = 3;
-            ctx.shadowColor = config.colors.enemy;
-            ctx.shadowBlur = 10;
-            
-            // Draw Hexagon
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+            ctx.strokeStyle = config.colors.enemy; ctx.lineWidth = 3; ctx.shadowColor = config.colors.enemy; ctx.shadowBlur = 10;
             ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                ctx.lineTo(this.size * Math.cos(i * Math.PI / 3), this.size * Math.sin(i * Math.PI / 3));
-            }
-            ctx.closePath();
-            ctx.stroke();
-
-            // Core
-            ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
-            ctx.fill();
-
-            ctx.restore();
+            for (let i = 0; i < 6; i++) { ctx.lineTo(this.size * Math.cos(i * Math.PI / 3), this.size * Math.sin(i * Math.PI / 3)); }
+            ctx.closePath(); ctx.stroke(); ctx.restore();
         }
     }
 
-    /**
-     * GAME LOOP
-     */
+    /** * GAME LOOP */
     function updateMsg(title, sub) {
         document.getElementById('main-msg').innerText = title;
         document.getElementById('sub-msg').innerHTML = sub;
@@ -361,164 +277,72 @@
     }
 
     function gameLoop() {
-        // Clear Background
-        ctx.fillStyle = config.colors.bg;
-        ctx.fillRect(0, 0, width, height);
-
-        // 1. Draw Grid Floor (Retro Vibe)
-        ctx.strokeStyle = "rgba(0, 255, 255, 0.1)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        // Vertical lines moving outward
-        for(let i=-width; i<width*2; i+=100) {
-            // Simple perspective hack
-            ctx.moveTo(width/2 + (i - width/2) * 0.2, 0);
-            ctx.lineTo(i, height);
-        }
-        ctx.stroke();
-
-        // 2. Stars
+        ctx.fillStyle = config.colors.bg; ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = "rgba(0, 255, 255, 0.1)"; ctx.lineWidth = 1; ctx.beginPath();
+        for(let i=-width; i<width*2; i+=100) { ctx.moveTo(width/2 + (i - width/2) * 0.2, 0); ctx.lineTo(i, height); } ctx.stroke();
+        
         stars.forEach(s => { s.update(); s.draw(); });
 
-        // 3. Game Logic
         if (state.gameRunning) {
             ship.draw();
-            
-            // Spawn Obstacles
             if (state.frame % 40 === 0) obstacles.push(new Obstacle());
-
-            // Handle Obstacles
             obstacles.forEach((obs, index) => {
-                obs.update();
-                obs.draw();
-
-                // Collision
-                const dx = ship.x - obs.x;
-                const dy = ship.y - obs.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-
+                obs.update(); obs.draw();
+                const dist = Math.sqrt((ship.x - obs.x)**2 + (ship.y - obs.y)**2);
                 if (dist < obs.size + 20) {
-                    // Hit!
-                    state.health -= 34; // 3 hits = dead
+                    state.health -= 34;
                     obstacles.splice(index, 1);
                     document.getElementById('health-display').innerText = `SHIELD: ${Math.floor(state.health)}%`;
-                    
-                    // Screen shake effect
                     canvas.style.transform = `translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`;
                     setTimeout(() => canvas.style.transform = "none", 100);
-
-                    if (state.health <= 0) {
-                        gameOver();
-                    }
+                    if (state.health <= 0) { state.gameRunning = false; updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand to Reboot`); state.health = 100; state.score = 0; obstacles = []; }
                 }
-
-                // Score
-                if (obs.y > height + 100) {
-                    obstacles.splice(index, 1);
-                    state.score += 100;
-                    document.getElementById('score-display').innerText = `SCORE: ${state.score}`;
-                }
+                if (obs.y > height + 100) { obstacles.splice(index, 1); state.score += 100; document.getElementById('score-display').innerText = `SCORE: ${state.score}`; }
             });
-
             state.frame++;
-        } else {
-            // Idle Animation (Ghost Ship)
-            ctx.globalAlpha = 0.3;
-            ship.draw();
-            ctx.globalAlpha = 1;
-        }
-
+        } else { ctx.globalAlpha = 0.3; ship.draw(); ctx.globalAlpha = 1; }
         requestAnimationFrame(gameLoop);
     }
-    
-    function gameOver() {
-        state.gameRunning = false;
-        updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand to Reboot System`);
-        state.health = 100;
-        state.score = 0;
-        obstacles = [];
-    }
+    gameLoop();
 
-    function startGame() {
-        if (!state.gameRunning) {
-            state.gameRunning = true;
-            document.getElementById('center-screen').style.display = 'none';
-            document.getElementById('health-display').innerText = "SHIELD: 100%";
-        }
-    }
-
-    gameLoop(); // Start render loop immediately
-
-    /**
-     * MEDIA PIPE (AI HAND TRACKING)
-     */
+    /** * AI SETUP */
     const videoElement = document.getElementById('input-video');
 
     function onResults(results) {
-        // Draw the small debug feed
         feedCtx.clearRect(0, 0, feedCanvas.width, feedCanvas.height);
         feedCtx.drawImage(results.image, 0, 0, feedCanvas.width, feedCanvas.height);
 
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            
-            // Hand Found
-            if (document.getElementById('main-msg').innerText === "SYSTEM BOOT") {
-                updateMsg("READY", "Hold steady to start");
-            }
-
+            if (document.getElementById('main-msg').innerText === "SYSTEM BOOT") updateMsg("READY", "Hold steady to start");
             const landmarks = results.multiHandLandmarks[0];
             drawConnectors(feedCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 2});
-
-            // Get Index Finger Tip (Landmark 8)
             const tip = landmarks[8];
-            
-            // Calculate screen coordinates (Mirrored X)
-            const x = (1 - tip.x) * width;
-            const y = tip.y * height;
-
-            // Update Ship Target
-            ship.targetX = x;
-            ship.targetY = y;
-
-            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") {
-                startGame();
-            }
-        } else {
-            // Hand Lost
-            if (state.gameRunning) {
-                state.gameRunning = false;
-                updateMsg("SIGNAL LOST", "Re-align Neural Link (Show Hand)");
-            }
+            ship.targetX = (1 - tip.x) * width; ship.targetY = tip.y * height;
+            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") { state.gameRunning = true; document.getElementById('center-screen').style.display = 'none'; document.getElementById('health-display').innerText = "SHIELD: 100%"; }
         }
     }
 
-    const hands = new Hands({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-    }});
+    try {
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
+        }});
 
-    hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-    });
+        hands.setOptions({
+            maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+        });
 
-    hands.onResults(onResults);
+        hands.onResults(onResults);
 
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            await hands.send({image: videoElement});
-        },
-        width: 640,
-        height: 480
-    });
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 640, height: 480
+        });
 
-    // START CAMERA
-    updateMsg("SYSTEM BOOT", "Loading AI Models...");
-    camera.start()
-        .then(() => updateMsg("WAITING FOR PILOT", "Please show your hand"))
-        .catch(err => updateMsg("ERROR", "Camera access denied or file:// protocol restriction.<br>Please use a Local Server."));
+        camera.start().catch(e => logError("Camera Start Failed: " + e));
 
+    } catch(e) {
+        logError("Initialization Failed: " + e);
+    }
 </script>
 </body>
 </html>
