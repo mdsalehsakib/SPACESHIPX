@@ -2,256 +2,447 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>IRON-FLIGHT: ORBITAL DEFENSE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>IRON-FLIGHT: FINAL ASSAULT</title>
     <style>
-        body {
-            margin: 0; overflow: hidden; background-color: #050510;
-            font-family: 'Segoe UI', sans-serif; color: #00ffff; user-select: none;
+        /* --- CORE VISUALS --- */
+        body { 
+            margin: 0; overflow: hidden; background: #050510; 
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
         }
-        canvas { display: block; position: absolute; top: 0; left: 0; }
-        #game-layer { z-index: 1; }
-        #ui-layer {
-            position: absolute; z-index: 2; width: 100vw; height: 100vh;
-            pointer-events: none;
-            background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.2) 50%);
-            background-size: 100% 4px;
+
+        /* LAYERS */
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* INVISIBLE VIDEO LAYER (REQUIRED FOR IOS/CHROME) */
+        #video-layer { 
+            position: absolute; top: 0; left: 0; width: 1px; height: 1px; 
+            opacity: 0; z-index: -1; pointer-events: none;
         }
-        #cam-container {
-            position: absolute; bottom: 20px; right: 20px; width: 240px; height: 180px;
-            border: 2px solid #555; background: #000; border-radius: 8px; z-index: 10;
+
+        /* UI OVERLAY */
+        #ui-layer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; pointer-events: none;
+            background: radial-gradient(circle, transparent 60%, black 150%);
         }
-        #cam-container.active { border-color: #00ff00; box-shadow: 0 0 15px #00ff00; }
-        #video-feed { width: 100%; height: 100%; transform: scaleX(-1); opacity: 0.6; }
-        .hud-text { position: absolute; font-weight: bold; text-shadow: 0 0 10px #00ffff; }
-        #score-display { top: 20px; right: 20px; font-size: 30px; }
-        #health-display { top: 20px; left: 20px; font-size: 30px; color: #ff0055; }
-        #center-screen {
+
+        /* HUD - TOP BAR */
+        .hud-panel {
+            position: absolute; top: 0; left: 0; width: 100%; height: 80px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            display: flex; justify-content: space-between; padding: 20px; box-sizing: border-box;
+        }
+
+        .stat-box { text-align: center; }
+        .label { color: #00ffff; font-size: 10px; letter-spacing: 2px; font-weight: bold; opacity: 0.8; }
+        .value { color: #fff; font-size: 24px; font-weight: 900; text-shadow: 0 0 10px #00ffff; }
+        #val-health { color: #ff0055; text-shadow: 0 0 10px #ff0055; }
+
+        /* STATUS LOG */
+        #status-log { 
+            position: absolute; bottom: 80px; left: 20px; font-size: 10px; color: #0f0; 
+            max-width: 200px; line-height: 1.4; opacity: 0.7; font-weight: bold;
+        }
+
+        /* CENTER MENU / GAME OVER */
+        #menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; z-index: 20;
+            text-align: center; width: 90%; pointer-events: auto;
+            background: rgba(0, 10, 20, 0.9); padding: 30px; border: 1px solid #00ffff;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.2); border-radius: 10px;
         }
-        h1 { font-size: 50px; margin: 0; color: #fff; text-shadow: 0 0 20px #00ffff; }
-        #watermark { position: absolute; bottom: 10px; left: 10px; color: #555; font-size: 12px; }
-        #creator-link {
-            position: absolute; top: 70px; right: 20px; padding: 5px 10px;
-            border: 1px solid #00ffff; color: #00ffff; text-decoration: none;
-            font-size: 12px; pointer-events: auto;
+        
+        h1 { 
+            font-size: 32px; color: #fff; margin: 0 0 10px 0; 
+            text-shadow: 0 0 20px #00ffff; letter-spacing: 4px;
         }
-        #debug-log {
-            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
-            color: #ff5555; background: rgba(0,0,0,0.8); padding: 5px; display: none;
+        
+        .sub-text { color: #aaa; font-size: 12px; margin-bottom: 20px; text-transform: uppercase; }
+
+        /* GLITCH EFFECT FOR GAME OVER */
+        .glitch { animation: glitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite; color: #ff0055; }
+        @keyframes glitch { 
+            0% { transform: translate(0) } 
+            20% { transform: translate(-2px, 2px) } 
+            40% { transform: translate(-2px, -2px) } 
+            60% { transform: translate(2px, 2px) } 
+            80% { transform: translate(2px, -2px) } 
+            100% { transform: translate(0) }
         }
+
+        /* BUTTONS */
+        .btn {
+            background: transparent; border: 2px solid #00ffff; color: #00ffff;
+            padding: 15px 0; width: 100%; font-size: 18px; font-weight: bold;
+            margin-bottom: 10px; border-radius: 4px; cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+            transition: 0.2s; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn:active { background: #00ffff; color: #000; }
+        
+        #btn-force { border-color: #ffaa00; color: #ffaa00; display: none; margin-top: 10px; }
+
+        /* LOADING SPINNER */
+        #loader {
+            width: 30px; height: 30px; border: 3px solid #333; border-top: 3px solid #00ffff;
+            border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px auto; display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* DEBUG CAM */
+        #cam-preview {
+            position: absolute; bottom: 20px; right: 20px; width: 80px; height: 106px;
+            border: 1px solid #333; opacity: 0.6; background: #000;
+            transform: scaleX(-1); border-radius: 4px;
+        }
+
+        /* WATERMARK & LINK */
+        #bottom-bar {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            pointer-events: none;
+        }
+        #watermark { 
+            color: rgba(255,255,255,0.5); font-size: 10px; font-weight: bold; 
+            letter-spacing: 1px; text-shadow: 0 0 2px #000;
+        }
+        #link-btn {
+            color: #00ffff; text-decoration: none; font-size: 12px; font-weight: bold;
+            border-bottom: 1px solid #00ffff; pointer-events: auto;
+        }
+
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-    <video id="input-video" playsinline style="display:none;"></video>
-    <canvas id="game-layer"></canvas>
+    <div id="video-layer">
+        <video id="webcam" playsinline webkit-playsinline muted autoplay></video>
+    </div>
+
+    <canvas id="game"></canvas>
 
     <div id="ui-layer">
-        <div id="watermark">MADE BY MD SALEH SAKIB</div>
-        <a id="creator-link" href="https://linktr.ee/salehsakib" target="_blank">CONNECT</a>
-        <div id="health-display">SHIELD: 100%</div>
-        <div id="score-display">0</div>
-        <div id="debug-log"></div>
-        <div id="center-screen">
-            <h1 id="main-msg">SYSTEM BOOT</h1>
-            <p id="sub-msg">Loading AI...</p>
+        <div class="hud-panel">
+            <div class="stat-box">
+                <div class="label">SHIELD</div>
+                <div class="value" id="val-health">100%</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">SCORE</div>
+                <div class="value" id="val-score">0</div>
+            </div>
         </div>
-        <div id="cam-container">
-            <canvas id="video-feed"></canvas>
+
+        <div id="status-log">SYSTEM IDLE</div>
+
+        <div id="menu">
+            <h1 id="menu-title">IRON FLIGHT</h1>
+            <div class="sub-text" id="menu-sub">ORBITAL DEFENSE SYSTEM</div>
+            <div id="loader"></div>
+            
+            <button class="btn" id="btn-init" onclick="initGame()">INITIATE SYSTEM</button>
+            <button class="btn" id="btn-force" onclick="forceTouchMode()">FORCE MANUAL MODE</button>
         </div>
+
+        <div id="bottom-bar">
+            <a id="link-btn" href="https://linktr.ee/salehsakib" target="_blank">CONNECT</a>
+            <div id="watermark">MADE BY MD SALEH SAKIB</div>
+        </div>
+        
+        <canvas id="cam-preview"></canvas>
     </div>
 
 <script>
-    const logError = (msg) => {
-        const d = document.getElementById('debug-log');
-        d.style.display = 'block'; d.innerHTML = msg; console.error(msg);
+    /* --- SHARED STATE --- */
+    const STATE = {
+        x: 0.5, y: 0.8,
+        running: false,
+        score: 0,
+        health: 100,
+        shake: 0,
+        speed: 1.0,
+        highScore: localStorage.getItem('iron_flight_hs') || 0
     };
 
-    // --- SETUP ---
-    const canvas = document.getElementById('game-layer');
+    const log = (msg) => {
+        const el = document.getElementById('status-log');
+        el.innerHTML = `> ${msg}<br>` + el.innerHTML.substring(0, 100);
+        console.log(msg);
+    };
+
+    /* --- GRAPHICS ENGINE --- */
+    const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    const feedCanvas = document.getElementById('video-feed');
-    const feedCtx = feedCanvas.getContext('2d');
-    const video = document.getElementById('input-video');
-    
     let width, height;
+
     function resize() {
         width = window.innerWidth; height = window.innerHeight;
         canvas.width = width; canvas.height = height;
     }
     window.addEventListener('resize', resize);
     resize();
-    feedCanvas.width = 320; feedCanvas.height = 240;
 
-    // --- GAME STATE ---
-    const state = { running: false, score: 0, health: 100, handSeen: false };
-    const ship = { x: width/2, y: height-100, tx: width/2, ty: height-100, trails: [] };
-    const obstacles = [];
-    const stars = Array(100).fill().map(() => ({
-        x: (Math.random()-0.5)*width*2, y: (Math.random()-0.5)*height*2, z: Math.random()*2000
-    }));
+    // Game Objects
+    const ship = { x: width/2, y: height*0.8, trails: [] };
+    const stars = Array(100).fill().map(() => ({x:Math.random()*width, y:Math.random()*height, z:Math.random()*2+1}));
+    const enemies = [];
+    const particles = [];
+    const texts = []; // For floating score text
 
-    // --- MAIN LOOP ---
+    // MAIN LOOP
     function loop() {
-        // 1. Clear & Background
-        ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, width, height);
+        // 1. Shake Effect
+        let sx = 0, sy = 0;
+        if (STATE.shake > 0) {
+            sx = (Math.random() - 0.5) * STATE.shake;
+            sy = (Math.random() - 0.5) * STATE.shake;
+            STATE.shake *= 0.9;
+            if(STATE.shake < 0.5) STATE.shake = 0;
+        }
+
+        // 2. Clear Screen
+        ctx.fillStyle = '#050510';
+        ctx.fillRect(0, 0, width, height);
         
-        // 2. Stars
+        ctx.save();
+        ctx.translate(sx, sy);
+
+        // 3. Draw Stars (Warp Speed)
         stars.forEach(s => {
-            s.z -= 10 + (state.score * 0.1);
-            if(s.z <= 0) { s.z = 2000; s.x = (Math.random()-0.5)*width*2; s.y = (Math.random()-0.5)*height*2; }
-            let sx = (s.x / s.z) * width + width/2;
-            let sy = (s.y / s.z) * height + height/2;
-            let sz = (1 - s.z/2000) * 3;
-            if(sx>0 && sx<width && sy>0 && sy<height) { ctx.fillStyle='#fff'; ctx.fillRect(sx, sy, sz, sz); }
+            s.y += s.z * (2 * STATE.speed);
+            if(s.y > height) { s.y = 0; s.x = Math.random()*width; }
+            ctx.fillStyle = `rgba(255,255,255,${s.z/4})`;
+            ctx.fillRect(s.x, s.y, 2, 2);
         });
 
-        // 3. Game Logic (Wrapped in Try/Catch to prevent freeze)
-        try {
-            if (state.running) {
-                // Move Ship
-                ship.x += (ship.tx - ship.x) * 0.2;
-                ship.y += (ship.ty - ship.y) * 0.2;
+        // 4. Draw Grid
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let i=0; i<width; i+=80) { ctx.moveTo(i, 0); ctx.lineTo(i, height); }
+        ctx.stroke();
 
-                // Draw Trails (SAFE MODE)
-                for (let i = ship.trails.length - 1; i >= 0; i--) {
-                    let t = ship.trails[i];
-                    t.y += 5; t.life -= 0.1;
-                    if (t.life <= 0) ship.trails.splice(i, 1);
-                    else {
-                        ctx.fillStyle = `rgba(0,255,255,${t.life})`;
-                        ctx.beginPath();
-                        // CRITICAL FIX: Math.max(0, ...) prevents negative radius crash
-                        ctx.arc(t.x, t.y, Math.max(0, 5 * t.life), 0, Math.PI*2);
-                        ctx.fill();
-                    }
+        if (STATE.running) {
+            // Difficulty increases with score
+            STATE.speed = 1 + (STATE.score * 0.001);
+
+            // Move Ship
+            let tx = STATE.x * width;
+            let ty = STATE.y * height;
+            ship.x += (tx - ship.x) * 0.15;
+            ship.y += (ty - ship.y) * 0.15;
+
+            // Draw Engine Trails
+            ship.trails.push({x: ship.x, y: ship.y+30, l: 1.0, w: 10});
+            for(let i=ship.trails.length-1; i>=0; i--) {
+                let t = ship.trails[i];
+                t.y += 10 * STATE.speed; t.l -= 0.1; t.w *= 0.8;
+                if(t.l <= 0) ship.trails.splice(i,1);
+                else {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${t.l})`;
+                    ctx.beginPath(); ctx.arc(t.x, t.y, t.w, 0, Math.PI*2); ctx.fill();
                 }
-                ship.trails.push({x: ship.x, y: ship.y+30, life: 1});
+            }
 
-                // Draw Ship
-                ctx.save(); ctx.translate(ship.x, ship.y);
-                ctx.shadowColor='#00ffff'; ctx.shadowBlur=15;
-                ctx.fillStyle='#000'; ctx.strokeStyle='#00ffff'; ctx.lineWidth=2;
-                ctx.beginPath(); ctx.moveTo(0,-40); ctx.lineTo(20,20); ctx.lineTo(0,10); ctx.lineTo(-20,20); ctx.closePath();
-                ctx.fill(); ctx.stroke();
+            // Draw Ship
+            ctx.shadowBlur = 20; ctx.shadowColor = '#00ffff';
+            ctx.fillStyle = '#000'; ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 3;
+            ctx.beginPath(); 
+            ctx.moveTo(ship.x, ship.y-30); 
+            ctx.lineTo(ship.x+20, ship.y+20); 
+            ctx.lineTo(ship.x-20, ship.y+20); 
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Spawn Enemies
+            if(Math.random() < 0.03 * STATE.speed) {
+                enemies.push({x: Math.random()*width, y: -50, s: 30+Math.random()*20, r: 0});
+            }
+
+            // Update Enemies
+            for(let i=enemies.length-1; i>=0; i--) {
+                let e = enemies[i];
+                e.y += 8 * STATE.speed;
+                e.r += 0.1;
+
+                // Draw Enemy
+                ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.r);
+                ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 3; ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 10;
+                ctx.strokeRect(-e.s/2, -e.s/2, e.s, e.s);
                 ctx.restore();
 
-                // Obstacles
-                if (Math.random() < 0.05) obstacles.push({x: Math.random()*width, y: -50, s: 30+Math.random()*30});
-                
-                for (let i = obstacles.length - 1; i >= 0; i--) {
-                    let o = obstacles[i];
-                    o.y += 5 + (state.score*0.01);
+                // Collision Logic
+                if(Math.hypot(ship.x - e.x, ship.y - e.y) < e.s) {
+                    enemies.splice(i, 1);
+                    STATE.health -= 34;
+                    STATE.shake = 30;
+                    spawnParticles(e.x, e.y, '#ff0055', 20);
+                    spawnFloatingText("-34%", ship.x, ship.y, '#ff0055');
+                    updateHUD();
                     
-                    // Draw Hexagon
-                    ctx.save(); ctx.translate(o.x, o.y);
-                    ctx.strokeStyle='#ff0055'; ctx.lineWidth=3; ctx.shadowColor='#ff0055'; ctx.shadowBlur=10;
-                    ctx.beginPath();
-                    for(let j=0; j<6; j++) ctx.lineTo(o.s*Math.cos(j*Math.PI/3), o.s*Math.sin(j*Math.PI/3));
-                    ctx.closePath(); ctx.stroke(); ctx.restore();
-
-                    // Collision
-                    if (Math.hypot(ship.x-o.x, ship.y-o.y) < o.s+20) {
-                        state.health -= 34;
-                        obstacles.splice(i, 1);
-                        document.getElementById('health-display').innerText = `SHIELD: ${Math.floor(state.health)}%`;
-                        if (state.health <= 0) resetGame();
-                    } else if (o.y > height+100) {
-                        obstacles.splice(i, 1);
-                        state.score += 10;
-                        document.getElementById('score-display').innerText = state.score;
-                    }
+                    if(STATE.health <= 0) gameOver();
+                } else if(e.y > height) {
+                    enemies.splice(i, 1);
+                    STATE.score += 10;
+                    spawnFloatingText("+10", e.x, height-50, '#00ffff');
+                    updateHUD();
                 }
-            } else {
-                // Idle Mode
-                ctx.globalAlpha = 0.3;
-                ctx.fillStyle='#00ffff'; ctx.beginPath(); ctx.arc(width/2, height-100, 20, 0, Math.PI*2); ctx.fill();
-                ctx.globalAlpha = 1;
             }
-        } catch (e) {
-            console.error("Game Logic Error (Skipped Frame):", e);
-        }
 
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.l -= 0.05;
+                if(p.l <= 0) particles.splice(i,1);
+                else {
+                    ctx.fillStyle = p.c; ctx.globalAlpha = p.l;
+                    ctx.fillRect(p.x, p.y, 4, 4);
+                }
+            }
+            ctx.globalAlpha = 1;
+
+            // Floating Texts
+            for(let i=texts.length-1; i>=0; i--) {
+                let t = texts[i];
+                t.y -= 2; t.life -= 0.02;
+                if(t.life <= 0) texts.splice(i,1);
+                else {
+                    ctx.fillStyle = t.c; ctx.font = "bold 20px Courier New";
+                    ctx.globalAlpha = t.life; ctx.fillText(t.msg, t.x, t.y);
+                }
+            }
+            ctx.globalAlpha = 1;
+        }
+        
+        ctx.restore();
         requestAnimationFrame(loop);
     }
-
-    function resetGame() {
-        state.running = false;
-        state.health = 100;
-        state.score = 0;
-        obstacles.length = 0;
-        document.getElementById('main-msg').innerText = "CRITICAL FAILURE";
-        document.getElementById('sub-msg').innerText = "Show Hand to Reboot";
-        document.getElementById('center-screen').style.display = 'block';
-    }
-
     loop();
 
-    // --- AI MANUAL LOOP ---
-    async function initAI() {
-        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`});
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-        
-        hands.onResults(results => {
-            // Draw debug feed
-            feedCtx.clearRect(0, 0, 320, 240);
-            feedCtx.drawImage(results.image, 0, 0, 320, 240);
-            
-            if (results.multiHandLandmarks.length > 0) {
-                // Hand Found
-                document.getElementById('cam-container').classList.add('active');
-                const lm = results.multiHandLandmarks[0];
-                drawConnectors(feedCtx, lm, HAND_CONNECTIONS, {color: '#00ff00', lineWidth: 2});
-                
-                // Update Ship Target
-                ship.tx = (1 - lm[8].x) * width;
-                ship.ty = lm[8].y * height;
-
-                // Start Game Trigger
-                if (!state.running && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") {
-                    state.running = true;
-                    document.getElementById('center-screen').style.display = 'none';
-                    document.getElementById('health-display').innerText = "SHIELD: 100%";
-                } else if (!state.running) {
-                    document.getElementById('main-msg').innerText = "READY";
-                    document.getElementById('sub-msg').innerText = "Hold Steady...";
-                }
-            } else {
-                document.getElementById('cam-container').classList.remove('active');
-                if(state.running) {
-                    state.running = false;
-                    document.getElementById('main-msg').innerText = "SIGNAL LOST";
-                    document.getElementById('sub-msg').innerText = "Show Hand to Resume";
-                    document.getElementById('center-screen').style.display = 'block';
-                }
-            }
-        });
-
-        // Setup Camera
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
-            video.srcObject = stream;
-            await video.play();
-            document.getElementById('sub-msg').innerText = "Show Hand to Start";
-            
-            // Manual processing loop (More robust than CameraUtils)
-            async function aiLoop() {
-                await hands.send({image: video});
-                requestAnimationFrame(aiLoop);
-            }
-            aiLoop();
-
-        } catch (e) {
-            logError("Camera Error: " + e.message);
+    /* --- HELPERS --- */
+    function spawnParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) {
+            particles.push({
+                x: x, y: y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, l: 1.0, c: color
+            });
         }
     }
 
-    initAI();
+    function spawnFloatingText(msg, x, y, color) {
+        texts.push({ msg: msg, x: x, y: y, life: 1.0, c: color });
+    }
 
+    function updateHUD() {
+        document.getElementById('val-score').innerText = STATE.score;
+        document.getElementById('val-health').innerText = Math.max(0, Math.floor(STATE.health)) + "%";
+    }
+
+    function gameOver() {
+        STATE.running = false;
+        
+        // Check High Score
+        if(STATE.score > STATE.highScore) {
+            STATE.highScore = STATE.score;
+            localStorage.setItem('iron_flight_hs', STATE.score);
+        }
+
+        const menu = document.getElementById('menu');
+        const title = document.getElementById('menu-title');
+        const sub = document.getElementById('menu-sub');
+        const btn = document.getElementById('btn-init');
+
+        menu.style.display = 'block';
+        title.innerText = "MISSION FAILED";
+        title.classList.add('glitch'); // Add glitch effect
+        sub.innerText = `SCORE: ${STATE.score} | BEST: ${STATE.highScore}`;
+        btn.innerText = "REBOOT SYSTEM";
+    }
+
+    /* --- INPUT HANDLING --- */
+    function handleMove(x, y) {
+        if(!STATE.running) return;
+        STATE.x = x / width;
+        STATE.y = y / height;
+    }
+    window.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+    window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+
+    /* --- INITIALIZATION --- */
+    async function initGame() {
+        const btn = document.getElementById('btn-init');
+        const loader = document.getElementById('loader');
+        const forceBtn = document.getElementById('btn-force');
+        const title = document.getElementById('menu-title');
+        
+        btn.style.display = 'none';
+        loader.style.display = 'block';
+        title.classList.remove('glitch');
+        log("Initializing Front Camera...");
+
+        // Safety Timer
+        setTimeout(() => { if(!STATE.running) forceBtn.style.display = 'block'; }, 6000);
+
+        try {
+            const video = document.getElementById('webcam');
+            const camCtx = document.getElementById('cam-preview').getContext('2d');
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } },
+                audio: false
+            });
+            
+            video.srcObject = stream;
+            await video.play();
+            log("Camera Active. Loading AI...");
+
+            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.5 });
+
+            hands.onResults(results => {
+                camCtx.drawImage(results.image, 0, 0, 80, 106);
+                if (results.multiHandLandmarks.length > 0) {
+                    const lm = results.multiHandLandmarks[0][8];
+                    STATE.x = 1 - lm.x; STATE.y = lm.y;
+                    if(!STATE.running && document.getElementById('menu').style.display !== 'none') startRunning();
+                }
+            });
+
+            async function aiFrame() {
+                if(video.readyState >= 2) await hands.send({image: video});
+                requestAnimationFrame(aiFrame);
+            }
+            aiFrame();
+            
+            log("Ready! Show Hand to Fly.");
+
+        } catch (e) {
+            log("Error: " + e.message);
+            forceBtn.style.display = 'block';
+        }
+    }
+
+    function startRunning() {
+        STATE.running = true;
+        STATE.score = 0;
+        STATE.health = 100;
+        enemies.length = 0;
+        particles.length = 0;
+        texts.length = 0;
+        updateHUD();
+        document.getElementById('menu').style.display = 'none';
+    }
+
+    function forceTouchMode() {
+        log("Manual Control Engaged.");
+        startRunning();
+    }
 </script>
 </body>
 </html>
