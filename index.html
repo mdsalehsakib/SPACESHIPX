@@ -140,7 +140,7 @@
 </head>
 <body>
 
-    <video id="input-video" playsinline style="position:absolute; opacity:0; pointer-events:none;"></video>
+    <video id="input-video" autoplay muted playsinline style="position:absolute; opacity:0.1; pointer-events:none; top:0; left:0; width:1px; height:1px;"></video>
 
     <canvas id="game-layer"></canvas>
 
@@ -216,9 +216,7 @@
             this.x += (this.targetX - this.x) * 0.15;
             this.y += (this.targetY - this.y) * 0.15;
             
-            // --- FIX: Safer Particle Loop ---
-            // Removed forEach, used reverse for-loop to handle removal correctly
-            // Added Math.max(0, ...) to prevent negative radius crash
+            // --- SAFE PARTICLE LOOP ---
             for (let i = this.trails.length - 1; i >= 0; i--) {
                 let t = this.trails[i];
                 t.y += 5;
@@ -229,12 +227,10 @@
                 } else {
                     ctx.fillStyle = `rgba(0, 255, 255, ${t.life})`;
                     ctx.beginPath();
-                    // Math.max(0, ...) ensures radius is never negative
                     ctx.arc(t.x, t.y, Math.max(0, 5 * t.life), 0, Math.PI*2);
                     ctx.fill();
                 }
             }
-            // Add new particle
             this.trails.push({x: this.x, y: this.y + 30, life: 1.0});
 
             ctx.save(); ctx.translate(this.x, this.y);
@@ -245,6 +241,21 @@
             ctx.restore();
         }
     };
+    
+    // --- MOUSE CONTROL FALLBACK ---
+    // If camera fails, you can use mouse to test if game works
+    window.addEventListener('mousemove', (e) => {
+        if(!state.handDetected) {
+            ship.targetX = e.clientX;
+            ship.targetY = e.clientY;
+            // Auto start if using mouse and not started
+            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") { 
+               state.gameRunning = true; 
+               document.getElementById('center-screen').style.display = 'none'; 
+               document.getElementById('health-display').innerText = "SHIELD: 100%"; 
+            }
+        }
+    });
 
     let stars = [];
     for(let i=0; i<config.starCount; i++) {
@@ -302,7 +313,6 @@
             ship.draw();
             if (state.frame % 40 === 0) obstacles.push(new Obstacle());
             
-            // Loop backwards for safe removal
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let obs = obstacles[i];
                 obs.update(); obs.draw();
@@ -317,7 +327,7 @@
                     setTimeout(() => canvas.style.transform = "none", 100);
                     if (state.health <= 0) { 
                         state.gameRunning = false; 
-                        updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand to Reboot`); 
+                        updateMsg("CRITICAL FAILURE", `Score: ${state.score}<br>Show Hand (or move mouse) to Reboot`); 
                         state.health = 100; state.score = 0; obstacles = []; 
                     }
                 } else if (obs.y > height + 100) { 
@@ -336,16 +346,30 @@
     const videoElement = document.getElementById('input-video');
 
     function onResults(results) {
-        feedCtx.clearRect(0, 0, feedCanvas.width, feedCanvas.height);
-        feedCtx.drawImage(results.image, 0, 0, feedCanvas.width, feedCanvas.height);
-
+        // AI found hand?
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            state.handDetected = true;
             if (document.getElementById('main-msg').innerText === "SYSTEM BOOT") updateMsg("READY", "Hold steady to start");
+            
+            // Debug view
+            feedCtx.clearRect(0, 0, feedCanvas.width, feedCanvas.height);
+            feedCtx.drawImage(results.image, 0, 0, feedCanvas.width, feedCanvas.height);
+            
             const landmarks = results.multiHandLandmarks[0];
             drawConnectors(feedCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 2});
+            
             const tip = landmarks[8];
             ship.targetX = (1 - tip.x) * width; ship.targetY = tip.y * height;
-            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") { state.gameRunning = true; document.getElementById('center-screen').style.display = 'none'; document.getElementById('health-display').innerText = "SHIELD: 100%"; }
+            
+            if (!state.gameRunning && document.getElementById('main-msg').innerText !== "SYSTEM BOOT") { 
+                state.gameRunning = true; 
+                document.getElementById('center-screen').style.display = 'none'; 
+                document.getElementById('health-display').innerText = "SHIELD: 100%"; 
+            }
+        } else {
+            state.handDetected = false;
+            // Only update debug view with raw image if no hand
+            feedCtx.drawImage(results.image, 0, 0, feedCanvas.width, feedCanvas.height);
         }
     }
 
@@ -364,6 +388,11 @@
             onFrame: async () => { await hands.send({image: videoElement}); },
             width: 640, height: 480
         });
+
+        // FORCE PLAY
+        videoElement.onloadedmetadata = () => {
+             videoElement.play();
+        };
 
         camera.start().catch(e => logError("Camera Start Failed: " + e));
 
